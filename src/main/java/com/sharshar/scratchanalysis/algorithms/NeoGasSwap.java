@@ -2,6 +2,7 @@ package com.sharshar.scratchanalysis.algorithms;
 
 import com.sharshar.scratchanalysis.beans.PriceData;
 import com.sharshar.scratchanalysis.repository.PriceDataES;
+import com.sharshar.scratchanalysis.utils.ScratchException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,6 +14,8 @@ import java.text.SimpleDateFormat;
 import java.util.*;
 
 /**
+ * Algorithm to test if swapping between NEO and BTC and GAS gives better profits
+ *
  * Created by lsharshar on 4/29/2018.
  */
 @Service
@@ -42,6 +45,10 @@ public class NeoGasSwap {
 			return this.neoPrice;
 		}
 
+		public boolean isBuy() {
+			return buy;
+		}
+
 		@Override
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
@@ -54,55 +61,60 @@ public class NeoGasSwap {
 	}
 
 	public class TradeSummary {
-		public double initialInvestment;
-		public double initialNeoPrice;
-		public double finalNeoPrice;
-		public double initialGasPrice;
-		public double finalGasPrice;
-		public double initialBtcPrice;
-		public double finalBtcPrice;
-		public Date initialTime;
-		public Date finalTime;
-		public List<TradeAction> trades;
+		double initialInvestment;
+		double initialNeoPrice;
+		double finalNeoPrice;
+		double initialGasPrice;
+		double finalGasPrice;
+		double initialBtcPrice;
+		double finalBtcPrice;
+		Date initialTime;
+		Date finalTime;
+		List<TradeAction> trades;
 
 		public double getInitialInvestment() {
 			return initialInvestment;
 		}
 
-		public void setInitialInvestment(double initialInvestment) {
+		public TradeSummary setInitialInvestment(double initialInvestment) {
 			this.initialInvestment = initialInvestment;
+			return this;
 		}
 
 		public double getInitialNeoPrice() {
 			return initialNeoPrice;
 		}
 
-		public void setInitialNeoPrice(double initialNeoPrice) {
+		public TradeSummary setInitialNeoPrice(double initialNeoPrice) {
 			this.initialNeoPrice = initialNeoPrice;
+			return this;
 		}
 
 		public double getFinalNeoPrice() {
 			return finalNeoPrice;
 		}
 
-		public void setFinalNeoPrice(double finalNeoPrice) {
+		public TradeSummary setFinalNeoPrice(double finalNeoPrice) {
 			this.finalNeoPrice = finalNeoPrice;
+			return this;
 		}
 
 		public double getInitialGasPrice() {
 			return initialGasPrice;
 		}
 
-		public void setInitialGasPrice(double initialGasPrice) {
+		public TradeSummary setInitialGasPrice(double initialGasPrice) {
 			this.initialGasPrice = initialGasPrice;
+			return this;
 		}
 
 		public double getFinalGasPrice() {
 			return finalGasPrice;
 		}
 
-		public void setFinalGasPrice(double finalGasPrice) {
+		public TradeSummary setFinalGasPrice(double finalGasPrice) {
 			this.finalGasPrice = finalGasPrice;
+			return this;
 		}
 
 		public double getGasIncreasePercentage() {
@@ -121,40 +133,45 @@ public class NeoGasSwap {
 			return trades;
 		}
 
-		public void setTrades(List<TradeAction> trades) {
+		public TradeSummary setTrades(List<TradeAction> trades) {
 			this.trades = trades;
+			return this;
 		}
 
 		public double getInitialBtcPrice() {
 			return initialBtcPrice;
 		}
 
-		public void setInitialBtcPrice(double initialBtcPrice) {
+		public TradeSummary setInitialBtcPrice(double initialBtcPrice) {
 			this.initialBtcPrice = initialBtcPrice;
+			return this;
 		}
 
 		public double getFinalBtcPrice() {
 			return finalBtcPrice;
 		}
 
-		public void setFinalBtcPrice(double finalBtcPrice) {
+		public TradeSummary setFinalBtcPrice(double finalBtcPrice) {
 			this.finalBtcPrice = finalBtcPrice;
+			return this;
 		}
 
 		public Date getInitialTime() {
 			return initialTime;
 		}
 
-		public void setInitialTime(Date initialTime) {
+		public TradeSummary setInitialTime(Date initialTime) {
 			this.initialTime = initialTime;
+			return this;
 		}
 
 		public Date getFinalTime() {
 			return finalTime;
 		}
 
-		public void setFinalTime(Date finalTime) {
+		public TradeSummary setFinalTime(Date finalTime) {
 			this.finalTime = finalTime;
+			return this;
 		}
 
 		@Override
@@ -216,65 +233,57 @@ public class NeoGasSwap {
 
 	private List<TradeAction> tradeActions;
 
+
 	public TradeSummary getProfitUsingGasToBtc(PriceDataES dataES) throws ParseException {
-		TradeSummary summary = new TradeSummary();
-		summary.setInitialInvestment(initialInvestment);
+		int numberOfItemsToAverage = 5;
+		TradeSummary summary = new TradeSummary().setInitialInvestment(initialInvestment);
 		tradeActions = new ArrayList<>();
 		Date sDate = sdf.parse(startDate);
 		Date eDate = sdf.parse(endDate);
 		try {
-			// Split over 4 hours
+			// Assume we haven't bought anything yet
 			boolean bought = false;
-			List<PriceData> firstNeoPriceData = null;
-			List<PriceData> firstGasPriceData = null;
-			List<PriceData> lastNeoPriceData = null;
-			List<PriceData> lastGasPriceData = null;
-			List<PriceData> firstBtcPriceData = null;
-			List<PriceData> lasttBtcPriceData = null;
+			// Save the last data that had price data in it so we can use it to specify the final prices, dates
+			List<PriceData> lastNeoPd = null;
+			List<PriceData> lastGasPd = null;
+			AnalysisUtils.DateRange finalDateFound = null;
+
+			// Split over 4 hours and iterate
 			List<AnalysisUtils.DateRange> dateRanges = AnalysisUtils.splitDates(sDate, eDate, 1000 * 60 * 60 * 4);
-			boolean firstItem = true;
 			for (AnalysisUtils.DateRange dateRange : dateRanges) {
+				// Load the data
 				List<PriceData> neoPd = dataES.findByTimeRange("NEOBTC", dateRange.getStartDate(), dateRange.getEndDate(), exchange);
 				List<PriceData> gasPd = dataES.findByTimeRange("GASBTC", dateRange.getStartDate(), dateRange.getEndDate(), exchange);
-				List<PriceData> btcPd = dataES.findByTimeRange("BTCUSDT", dateRange.getStartDate(), dateRange.getEndDate(), exchange);
-				List<List<PriceData>> splitNeoList = AnalysisUtils.splitUpData(neoPd, interval);
-				// Set it to the last date range - eventually it will be true when we drop out of the for
+				// If this is the first item with data, store it as the first data
+				if (summary.getInitialTime() == null && !neoPd.isEmpty()) {
+					// We only need BTC prices for the start and the end so do it here
+					List<PriceData> btcPd = dataES.findByTimeRange("BTCUSDT", dateRange.getStartDate(), dateRange.getEndDate(), exchange);
+					// Set all the initial price/time values
+					summary.setInitialTime(AnalysisUtils.getFirst(neoPd).getUpdateTime());
+					summary.setInitialGasPrice(AnalysisUtils.getMean(AnalysisUtils.getFirstX(gasPd, numberOfItemsToAverage)));
+					summary.setInitialNeoPrice(AnalysisUtils.getMean(AnalysisUtils.getFirstX(neoPd, numberOfItemsToAverage)));
+					summary.setInitialBtcPrice(AnalysisUtils.getMean(AnalysisUtils.getFirstX(btcPd, numberOfItemsToAverage)));
+				}
+				// Set it to the last date range - eventually it will be true when we drop out of the for loop
 				if (!neoPd.isEmpty()) {
-					lastNeoPriceData = neoPd;
-				}
-				if (!gasPd.isEmpty()) {
-					lastGasPriceData = gasPd;
-				}
-				// If we are not defined yet, this must be first
-				if (firstNeoPriceData == null && !neoPd.isEmpty()) {
-					firstNeoPriceData = neoPd;
-				}
-				if (firstGasPriceData == null && !gasPd.isEmpty()) {
-					firstGasPriceData = gasPd;
+					finalDateFound = dateRange;
+					lastNeoPd = neoPd;
+					lastGasPd = gasPd;
 				}
 				// Determine the ratio and then buy or sell (you can only buy if you've sold, you can only sell if you've bought)
-				List<List<PriceData>> splitGasList = AnalysisUtils.splitUpData(gasPd, interval);
-				for (int i = 0; i < splitNeoList.size(); i++) {
-					List<PriceData> neoList = splitNeoList.get(i);
-					if (splitGasList.size() > i) {
-						List<PriceData> gasList = splitGasList.get(i);
-						bought = getTradeActions(neoList, gasList, bought, lowGasRatio, highGasRatio);
-					}
+				if (!gasPd.isEmpty()) {
+					bought = getTradeActions(neoPd, gasPd, bought, lowGasRatio, highGasRatio, tradeActions);
 				}
 			}
-			if (firstGasPriceData != null && lastGasPriceData != null && firstNeoPriceData != null && lastNeoPriceData != null &&
-					!firstGasPriceData.isEmpty() && !lastGasPriceData.isEmpty() && !firstNeoPriceData.isEmpty() && !lastNeoPriceData.isEmpty()) {
-				Date initialTime = firstGasPriceData.get(0).getUpdateTime();
-				Date finalTime = lastGasPriceData.get(firstGasPriceData.size() - 1).getUpdateTime();
-				summary.setInitialTime(initialTime);
-				summary.setFinalTime(finalTime);
-				summary.setInitialGasPrice(getInitialPrice(initialTime, "GASBTC", dataES));
-				summary.setInitialNeoPrice(getInitialPrice(initialTime, "NEOBTC", dataES));
-				summary.setInitialBtcPrice(getInitialPrice(initialTime, "BTCUSDT", dataES));
-				summary.setTrades(tradeActions);
-				summary.setFinalGasPrice(getFinalPrice(finalTime, "GASBTC", dataES));
-				summary.setFinalNeoPrice(getFinalPrice(finalTime, "NEOBTC", dataES));
-				summary.setFinalBtcPrice(getFinalPrice(finalTime, "BTCUSDT", dataES));
+			// We're done with iterating over the date ranges, get the BTC data from the last, non-empty date range
+			if (finalDateFound != null) {
+				List<PriceData> btcPd = dataES.findByTimeRange("BTCUSDT", finalDateFound.getStartDate(), finalDateFound.getEndDate(), exchange);
+				// Set all the "final" data
+				summary.setFinalBtcPrice(AnalysisUtils.getMean(AnalysisUtils.getLastX(btcPd, numberOfItemsToAverage)))
+						.setFinalNeoPrice(AnalysisUtils.getMean(AnalysisUtils.getLastX(lastNeoPd, numberOfItemsToAverage)))
+						.setFinalGasPrice(AnalysisUtils.getMean(AnalysisUtils.getLastX(lastGasPd, numberOfItemsToAverage)))
+						.setTrades(tradeActions)
+						.setFinalTime(AnalysisUtils.getLast(lastNeoPd).getUpdateTime());
 			}
 			return summary;
 		} catch (Exception ex) {
@@ -283,116 +292,162 @@ public class NeoGasSwap {
 		}
 	}
 
-	public double calculateProfitsNeo(double lastNeoPrice, double lastGasPrice) {
-		double amountInNeo = 0;
-		double amountInGas = 0;
-		if (tradeActions.size() < 2) {
-			// We don't have enough data
+	/**
+	 * Calculate the amount of profit we can set with our buy/sell strategy if we convert to and from NEO and GAS
+	 *
+	 * @param firstNeoPrice - the first NEOBTC price
+	 * @param lastNeoPrice - the last NEOBTC price
+	 * @param initialInvestment - the initial investment in BTC
+	 * @param actionList - the list of buy/sell combinations
+	 * @return the profits (positive or negative depending on gain or loss)
+	 */
+	public static double calculateProfitsNeo(double firstNeoPrice, double lastNeoPrice,
+					 double initialInvestment, List<TradeAction> actionList) {
+		List<TradeAction> actions = new ArrayList<>();
+		actions.addAll(actionList);
+		try {
+			if (!canFixList(actions)) {
+				return 0;
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 			return 0;
 		}
-		if (tradeActions.size() % 2 == 1) {
-			// We ended on a buy, ignore the last item
-			tradeActions.remove(tradeActions.size() - 1);
-		}
 
-		// If the ratio is low, buy GAS, otherwise, buy NEO
-		double ratio = tradeActions.get(0).getGasPrice() / tradeActions.get(0).getNeoPrice();
-		double midValue = (highGasRatio + lowGasRatio) / 2;
-		if (ratio > midValue) {
-			amountInNeo = initialInvestment / (tradeActions.get(0).getNeoPrice());
-			amountInGas = 0;
-		} else {
-			amountInGas = initialInvestment / (tradeActions.get(0).getGasPrice());
-			amountInNeo = 0;
-		}
-		if (amountInGas > 0) {
-			// Remove the first buy, we've already bought it
-			tradeActions.remove(0);
-		}
+		// first buy neo
+		double amountInNeo = initialInvestment/firstNeoPrice;
+		double amountInGas = 0;
 
-		double lastNeo = 0;
-		for (TradeAction action : tradeActions) {
+		// Iterate through the remaining transactions, swapping between NEO and GAS
+		for (TradeAction action : actions) {
 			if (action.buy) {
-				// buy
-				amountInGas += amountInNeo / action.gasPrice;
+				// buy GAS, sell NEO
+				amountInGas += (action.getNeoPrice() / action.getGasPrice()) * amountInNeo;
 				amountInNeo = 0;
 			}
 			if (!action.buy) {
-				// sell
-				amountInNeo = action.neoPrice / action.gasPrice;
+				// sell GAS, buy NEO
+				amountInNeo = (action.gasPrice / action.neoPrice) * amountInGas;
 				amountInGas = 0;
 			}
 		}
-		// finally, return to btc - use last price
-		if (amountInGas > 0) {
-			amountInNeo = (lastGasPrice/lastNeo) * amountInGas;
-		}
-		// Amount in bitcoin
+		// finally, return to btc - use last price and subtract it from our initial investment
 		return (lastNeoPrice * amountInNeo) - initialInvestment;
 	}
 
-	public double calculateProfitsBtc() {
-		if (tradeActions.size() < 2) {
-			// We don't have enough data
+	/**
+	 * Calculate the profits you would get by trading GAS back and forth from GAS
+	 *
+	 * @return the profits (positive or negative depending on gain or loss)
+	 */
+	public static double calculateProfitsBtc(double initialInvestment, List<TradeAction> actionList) {
+		List<TradeAction> actions = new ArrayList<>(actionList);
+		try {
+			if (!canFixList(actions)) {
+				return 0;
+			}
+		} catch (Exception ex) {
+			ex.printStackTrace();
 			return 0;
 		}
-		if (tradeActions.size() % 2 == 1) {
-			// We ended on a buy, ignore the last item
-			tradeActions.remove(tradeActions.size() - 1);
-		}
-		double profits = 0;
+
+		// We start with an investment
 		double amountInBitcoin = initialInvestment;
 		double amountInGas = 0;
-		for (TradeAction action : tradeActions) {
-			logger.info(action.toString());
+		// Process all trades
+		for (TradeAction action : actions) {
+			// buy GAS with BTC
 			if (action.buy) {
-				// buy
-				amountInBitcoin -= initialInvestment;
-				amountInGas += initialInvestment / action.gasPrice;
+				// Assume we use all our available BTC, whether it is more or less than our initial investment
+				// We could change this to have a maximum if we didn't want to risk profits
+				amountInGas += amountInBitcoin / action.gasPrice;
+				amountInBitcoin = 0;
 			}
+			// sell GAS for BTC
 			if (!action.buy) {
-				// sell
 				amountInBitcoin += action.gasPrice * amountInGas;
 				amountInGas = 0;
 			}
 		}
+		// The profit is how much above or below our initial investment
 		return (amountInBitcoin - initialInvestment);
 	}
 
-	private boolean getTradeActions(List<PriceData> neoList, List<PriceData> gasList, boolean bought, double lowRatio, double highRatio) {
+	/**
+	 * Find all the transactions that would occur given the low ration and high ratio that would trigger buys or sells
+	 *
+	 * @param neoList - the list of NEO price data
+	 * @param gasList - the list of GAS price data
+	 * @param bought - If we have last done a buy (we can't do a sell unless we've done a buy and vice versa)
+	 * @param lowRatio - The ratio to buy GAS
+	 * @param highRatio - the ration to sell GAS
+	 * @return - if we are currently in a buy state
+	 */
+	private boolean getTradeActions(List<PriceData> neoList, List<PriceData> gasList, boolean bought,
+									double lowRatio, double highRatio, List<TradeAction> actions) {
+		// If any of the lists are empty, return our current state without change
 		if (neoList.isEmpty() || gasList.isEmpty() || neoList.size() != gasList.size()) {
 			return bought;
 		}
+		// Sort the data
 		List<PriceData> splitNeoList = AnalysisUtils.sortList(neoList);
 		List<PriceData> splitGasList = AnalysisUtils.sortList(gasList);
+
+		// For each data point, compare the ratio
 		for (int i = 0; i < splitNeoList.size(); i++) {
 			PriceData neo = neoList.get(i);
 			PriceData gas = splitGasList.get(i);
 			double ratio = gas.getPrice() / neo.getPrice();
+			// We are currently bought in and we're above our high ratio, sell GAS
 			if (bought && ratio > highRatio) {
 				// sell it
-				tradeActions.add(new TradeAction(gas.getUpdateTime(), gas.getPrice(), neo.getPrice(), false));
+				actions.add(new TradeAction(gas.getUpdateTime(), gas.getPrice(), neo.getPrice(), false));
 				bought = false;
 			}
+			// We are currently NOT bought in and we're below our low ratio, buy GAS
 			if (!bought && ratio < lowRatio) {
-				tradeActions.add(new TradeAction(gas.getUpdateTime(), gas.getPrice(), neo.getPrice(), true));
+				actions.add(new TradeAction(gas.getUpdateTime(), gas.getPrice(), neo.getPrice(), true));
 				bought = true;
 			}
 		}
 		return bought;
 	}
 
-	private double getInitialPrice(Date startDate, String ticker, PriceDataES dataES) throws Exception {
-		// Take the end data as one minute later, take the mean of the 1st minute
-		Date endDate = new Date(startDate.getTime() + (1000 * 60));
-		List<PriceData> pd = dataES.findByTimeRange(ticker, startDate, endDate, exchange);
-		return AnalysisUtils.getMean(pd);
-	}
+	/**
+	 * Attempt to fix the list if it's weird and if we can't, return false
+	 *
+	 * @param actions - the list that will be edited if needed or returned as invalid
+	 * @return if the list has been successfully fixed
+	 */
+	public static boolean canFixList(List<TradeAction> actions) throws ScratchException {
+		// We don't have enough data - we need at least one buy and one sell
+		if (actions == null || actions.size() < 2) {
+			throw new ScratchException("There are less than 2 actions");
+		}
+		// We ended on a buy, ignore the last item
+		if (actions.size() % 2 == 1 && actions.get(0).isBuy()) {
+			actions.remove(actions.size() - 1);
+		}
+		// For some reason, we started on a sell. This should never happen, but if
+		// it does, remove the 1st one.
+		if (actions.size() % 2 == 1 && !actions.get(0).isBuy()) {
+			actions.remove(0);
+		}
+		// Weird, we started on a sell, but still have multiples of 2, so maybe end on a buy?
+		if (actions.size() % 2 == 0 && !actions.get(0).isBuy()) {
+			actions.remove(actions.size() - 1);
+			actions.remove(0);
+		}
 
-	private double getFinalPrice(Date endDate, String ticker, PriceDataES dataES) throws Exception {
-		// Take the start data as one minute earlier, take the mean of the last minute
-		Date startDate = new Date(endDate.getTime() - (1000 * 60));
-		List<PriceData> pd = dataES.findByTimeRange(ticker, startDate, endDate, exchange);
-		return AnalysisUtils.getMean(pd);
+		// At this point, all items should be an alternating sequence of BUY-SELL-BUY-SELL-....
+		boolean oldBuy = false;
+		for (TradeAction action : actions) {
+			boolean newBuy = action.isBuy();
+			if (oldBuy == newBuy) {
+				throw new ScratchException("Invalid list - not ordered alternating BUY/SELL");
+			}
+			oldBuy = newBuy;
+		}
+		return true;
 	}
 }

@@ -1,5 +1,7 @@
 package com.sharshar.scratchanalysis.beans;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
@@ -7,6 +9,7 @@ import org.springframework.data.elasticsearch.annotations.FieldType;
 
 import java.security.SecureRandom;
 import java.util.Date;
+import java.util.Random;
 
 /**
  * Bean for price data
@@ -15,6 +18,9 @@ import java.util.Date;
  */
 @Document(indexName = "pricedata", type="_doc")
 public class PriceData {
+
+	private Logger logger = LogManager.getLogger();
+
 	@Id
 	private Long _id;
 
@@ -36,14 +42,15 @@ public class PriceData {
 			int val = prng.nextInt();
 			unsignedValue = val;
 			if (val < 0) {
-				unsignedValue = val & 0xffffffffl;
+				unsignedValue = val & 0xffffffffL;
 			}
 		} catch (Exception ex) {
-			ex.printStackTrace();
-			int val = (int) (Math.random() * Integer.MAX_VALUE);
+			logger.error("Unable to create an ID for the price data, trying with a random number", ex);
+			Random r = new Random();
+			int val = r.nextInt();
 			unsignedValue = val;
 			if (val < 0) {
-				unsignedValue = val & 0xffffffffl;
+				unsignedValue = val & 0xffffffffL;
 			}
 		}
 		_id = unsignedValue;

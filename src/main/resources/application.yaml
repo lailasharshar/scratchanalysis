@@ -24,6 +24,6 @@ up: 0.1
 down: -0.1
 
 initialInvestment: 2.0
-lowGasRatio: 0.34
+lowGasRatio: 0.33
 highGasRatio: 0.35
 

@@ -7,7 +7,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
@@ -53,16 +52,13 @@ public class DataAnalysis {
 	@Resource
 	private PriceDataES priceDataEs;
 
-	private SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy HH:mm");
-	private SimpleDateFormat sdf2 = new SimpleDateFormat("MM-dd-yyyy HH:mm:ss");
-
 	public List<PriceDataLight> getPriceData(String ticker, Date startDate, Date endDate, short exchange) throws Exception {
 		if (startDate == null || endDate == null) {
 			return new ArrayList<>();
 		}
 		List<PriceData> data = priceDataEs.findByTimeRange(ticker, startDate, endDate, exchange);
 		if (data != null) {
-			data.stream().sorted(Comparator.comparing(PriceData::getUpdateTime)).collect(Collectors.toList());
+			data = data.stream().sorted(Comparator.comparing(PriceData::getUpdateTime)).collect(Collectors.toList());
 			return data.stream().map(d -> new PriceDataLight(d.getTicker(), d.getPrice(), d.getUpdateTime()))
 					.collect(Collectors.toList());
 		}

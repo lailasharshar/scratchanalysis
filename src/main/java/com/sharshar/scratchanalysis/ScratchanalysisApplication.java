@@ -7,10 +7,6 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.ConfigurableApplicationContext;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 @SpringBootApplication
 public class ScratchanalysisApplication {
 
@@ -26,9 +22,10 @@ public class ScratchanalysisApplication {
 		NeoGasSwap swap = context.getBean(NeoGasSwap.class);
 		NeoGasSwap.TradeSummary results = swap.getProfitUsingGasToBtc(pdes);
 		System.out.println(results);
-		double profits = swap.calculateProfitsBtc();
+		double profits = swap.calculateProfitsBtc(2, results.getTrades());
 		System.out.println("Profit (BTC Swap): " + profits);
-		double profits2 = swap.calculateProfitsNeo(results.getFinalNeoPrice(), results.getFinalGasPrice());
+		double profits2 = swap.calculateProfitsNeo(results.getInitialNeoPrice(),
+				results.getFinalNeoPrice(), 2, results.getTrades());
 		System.out.println("Profit (NEO swap): " + profits2);
 	}
 }

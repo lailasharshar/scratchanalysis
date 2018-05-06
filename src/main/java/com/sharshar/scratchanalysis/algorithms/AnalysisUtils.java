@@ -91,7 +91,7 @@ public class AnalysisUtils {
 	 */
 	public static List<AnalysisUtils.DateRange> splitDates(Date startDate, Date endDate, long maxTime) {
 		List<AnalysisUtils.DateRange> dr = new ArrayList<>();
-		if (startDate == null || endDate == null || endDate.getTime() < startDate.getTime()) {
+		if (startDate == null || endDate == null || endDate.getTime() <= startDate.getTime() || maxTime == 0) {
 			return dr;
 		}
 		Date movingStartDate = new Date(startDate.getTime());
@@ -118,7 +118,7 @@ public class AnalysisUtils {
 		if (data == null || data.isEmpty()) {
 			return 0;
 		}
-		double sub = data.stream().mapToDouble(p -> p.getPrice()).sum();
+		double sub = data.stream().mapToDouble(PriceData::getPrice).sum();
 		return sub/data.size();
 	}
 
@@ -148,5 +148,79 @@ public class AnalysisUtils {
 			return (endVal - startVal)/startVal;
 		}
 		return -1 * ((startVal - endVal)/startVal);
+	}
+
+	/**
+	 * Get the earliest price data in the list
+	 *
+	 * @param data - the data list
+	 * @return the earliest price data
+	 */
+	public static PriceData getFirst(List<PriceData> data) {
+		if (data == null || data.isEmpty()) {
+			return null;
+		}
+		return data.stream().min(Comparator.comparingLong(c -> c.getUpdateTime().getTime())).orElse(null);
+	}
+
+	/**
+	 * Get the latest price data in the list
+	 *
+	 * @param data - the data list
+	 * @return the latest price data
+	 */
+	public static PriceData getLast(List<PriceData> data) {
+		if (data == null || data.isEmpty()) {
+			return null;
+		}
+		return data.stream().max(Comparator.comparingLong(c -> c.getUpdateTime().getTime())).orElse(null);
+	}
+
+	/**
+	 * Get the earliest x number of price data records in the list
+	 *
+	 * @param list - the data list
+	 * @param x - the number of items to pull
+	 * @return the earliest price data list with x number of items, or the entire list if x is
+	 * greater than the list size. The result is ordered by increasing date
+	 */
+	public static List<PriceData> getFirstX(List<PriceData> list, int x) {
+		int xVal = x;
+		List<PriceData> firstX = new ArrayList<>();
+		if (list == null) {
+			return firstX;
+		}
+		if (list.size() < x) {
+			xVal = list.size();
+		}
+		List<PriceData> sortedList = sortList(list);
+		for (int i=0; i<xVal; i++) {
+			firstX.add(sortedList.get(i));
+		}
+		return firstX;
+	}
+
+	/**
+	 * Get the latest x number of price data records in the list
+	 *
+	 * @param list - the data list
+	 * @param x - the number of items to pull
+	 * @return the latest price data list with x number of items, or the entire list if x is
+	 * greater than the list size. The result is ordered by increasing date
+	 */
+	public static List<PriceData> getLastX(List<PriceData> list, int x) {
+		int xVal = x;
+		List<PriceData> lastX = new ArrayList<>();
+		if (list == null) {
+			return lastX;
+		}
+		if (list.size() < x) {
+			xVal = list.size();
+		}
+		List<PriceData> sortedList = sortList(list);
+		for (int i=(sortedList.size() - xVal); i<sortedList.size(); i++) {
+			lastX.add(sortedList.get(i));
+		}
+		return lastX;
 	}
 }

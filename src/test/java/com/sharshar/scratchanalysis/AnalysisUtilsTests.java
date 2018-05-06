@@ -8,11 +8,13 @@ import org.junit.runner.RunWith;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
  * Tests the util class for analysis
@@ -60,6 +62,8 @@ public class AnalysisUtilsTests {
 
 		double mean = AnalysisUtils.getMean(list);
 		assertEquals(mean, 2.5, 0.00001);
+		mean = AnalysisUtils.getMean(new ArrayList<>());
+		assertEquals(mean, 0, 0.00001);
 	}
 
 	@Test
@@ -89,7 +93,27 @@ public class AnalysisUtilsTests {
 				.setExchange(ScratchConstants.BINANCE).setPrice(7.0).setTicker("ETHBTC").setUpdateTime(seven);
 
 		List<PriceData> list = Arrays.asList(new PriceData[] {pd1, pd2, pd3, pd4, pd5, pd6, pd7});
-		List<List<PriceData>> splitList = AnalysisUtils.splitUpData(list, interval);
+
+		List<PriceData> firstItems = AnalysisUtils.getFirstX(list, 2);
+		assertEquals(2, firstItems.size());
+		assertEquals(firstItems.get(0).getPrice(), 3.0, 0.00001);
+		assertEquals(firstItems.get(1).getPrice(), 2.0, 0.00001);
+		List<PriceData> firstItems2 = AnalysisUtils.getFirstX(list, 10);
+		assertEquals(7, firstItems2.size());
+		assertEquals(firstItems2.get(0).getPrice(), 3.0, 0.00001);
+
+		List<PriceData> lastItems = AnalysisUtils.getLastX(list, 2);
+		assertEquals(2, firstItems.size());
+		assertEquals(lastItems.get(0).getPrice(), 5.0, 0.00001);
+		assertEquals(lastItems.get(1).getPrice(), 7.0, 0.00001);
+		List<PriceData> lastItems2 = AnalysisUtils.getLastX(list, 10);
+		assertEquals(7, lastItems2.size());
+		assertEquals(lastItems2.get(0).getPrice(), 3.0, 0.00001);
+		assertEquals(lastItems2.get(6).getPrice(), 7.0, 0.00001);
+
+		List<List<PriceData>> splitList = AnalysisUtils.splitUpData(list, 0);
+		assertEquals(0, splitList.size());
+		splitList = AnalysisUtils.splitUpData(list, interval);
 		assertEquals(3, splitList.size());
 
 		List<PriceData> l1 = splitList.get(0);
@@ -107,6 +131,16 @@ public class AnalysisUtilsTests {
 		List<PriceData> l3 = splitList.get(2);
 		assertEquals(1, l3.size());
 		assertEquals(l3.get(0).getPrice(), 7.0, 0.00001);
+
+		assertNull(AnalysisUtils.getFirst(new ArrayList<>()));
+		assertNull(AnalysisUtils.getFirst(null));
+		assertNull(AnalysisUtils.getLast(new ArrayList<>()));
+		assertNull(AnalysisUtils.getLast(null));
+
+		assertEquals(0, AnalysisUtils.getFirstX(new ArrayList<>(), 1).size());
+		assertEquals(0, AnalysisUtils.getFirstX(null, 1).size());
+		assertEquals(0, AnalysisUtils.getLastX(new ArrayList<>(), 1).size());
+		assertEquals(0, AnalysisUtils.getLastX(null, 1).size());
 	}
 
 	@Test
@@ -126,7 +160,13 @@ public class AnalysisUtilsTests {
 		PriceData pd4 = new PriceData()
 				.setExchange(ScratchConstants.BINANCE).setPrice(4.0).setTicker("ETHBTC").setUpdateTime(first);
 
+		List<PriceData> emtpyList = AnalysisUtils.getDataWithinInterval(new ArrayList<>(), 10000);
+		assertEquals(emtpyList.size(), 0);
+
 		List<PriceData> list = Arrays.asList(new PriceData[] {pd1, pd2, pd3, pd4});
+		assertEquals(4.0, AnalysisUtils.getFirst(list).getPrice(), 0.00001);
+		assertEquals(3.0, AnalysisUtils.getLast(list).getPrice(), 0.00001);
+
 		List<PriceData> l1 = AnalysisUtils.getDataWithinInterval(list, interval);
 
 		assertEquals(3, l1.size());
@@ -135,6 +175,36 @@ public class AnalysisUtilsTests {
 		assertEquals(l1.get(2).getPrice(), 1.0, 0.00001);
 	}
 
+	@Test
+	public void testDateRangeObj() {
+		Date d1 = new Date();
+		Date d2 = new Date(d1.getTime() + 10000);
+		AnalysisUtils.DateRange dr1 = new AnalysisUtils().new DateRange(d1, d2);
+		assertEquals(dr1.getStartDate().getTime(), d1.getTime());
+		assertEquals(dr1.getEndDate().getTime(), d2.getTime());
+	}
+
+	@Test
+	public void testDateRangeSplit() {
+		// right now
+		Date d1 = new Date();
+
+		// Get the time a week from now
+		long aDay = 1000 * 60 * 60 * 24;
+		long aWeek = aDay * 7;
+		Date d2 = new Date(d1.getTime() + aWeek);
+
+		List<AnalysisUtils.DateRange> values = AnalysisUtils.splitDates(d1, d1, 10);
+		assertEquals(0, values.size());
+		values = AnalysisUtils.splitDates(d2, d1, 10);
+		assertEquals(0, values.size());
+		values = AnalysisUtils.splitDates(d1, d2, 0);
+		assertEquals(0, values.size());
+		values = AnalysisUtils.splitDates(d1, d2, aDay);
+		assertEquals(7, values.size());
+		values = AnalysisUtils.splitDates(d1, new Date(d2.getTime() + 1000), aDay);
+		assertEquals(8, values.size());
+	}
 			/*
 	public static List<AnalysisUtils.DateRange> splitDates(Date startDate, Date endDate, long maxTime) {
 */
