@@ -3,6 +3,8 @@ package com.sharshar.scratchanalysis.algorithms;
 import com.sharshar.scratchanalysis.beans.PriceData;
 import com.sharshar.scratchanalysis.repository.PriceDataES;
 import com.sharshar.scratchanalysis.utils.ScratchConstants;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
@@ -22,6 +24,7 @@ import static com.sharshar.scratchanalysis.algorithms.AnalysisUtils.splitDates;
  */
 @Service
 public class SignalSearcher {
+	Logger logger = LogManager.getLogger();
 	private SimpleDateFormat sdf = new SimpleDateFormat("MM-dd-yyyy");
 
 	@Autowired
@@ -148,7 +151,7 @@ public class SignalSearcher {
 				}
 			}
 		} catch (Exception ex) {
-			ex.printStackTrace();
+			logger.error("Cannot determine signal identifiers", ex);
 		}
 		return sigIds;
 	}
